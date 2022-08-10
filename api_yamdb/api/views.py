@@ -1,14 +1,22 @@
 from django.contrib.auth.tokens import default_token_generator
-from rest_framework import status
 from django.core.mail import send_mail
+from rest_framework import status
 from rest_framework.decorators import api_view
+from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 
-from api.serializers import UserSerializer, SignupSerializer
+from api.serializers import UserSerializer, SignupSerializer, TokenSerializer
+from users.models import User
 
 
+@api_view(['POST'])
 def token(request):
-    pass
+    serializer = TokenSerializer(data=request.data)
+    if serializer.is_valid():
+        username = request.data.get('username')
+        user = get_object_or_404(User, username=username)
+        confirmation_code = request.data.get('confirmation_code')
+        default_token_generator.check_token(user, confirmation_code)
 
 
 @api_view(['POST'])
@@ -27,7 +35,7 @@ def send_code_for_confirm(user) -> send_mail:
     subject = 'Код подтверждения от YaMBb'
     confirmation_code = default_token_generator.make_token(user)
     message = f'Ваш код подтверждения - {confirmation_code}'
-    from_email = 'from_admin@yamdb.com'
+    from_email = 'vl-borisof@yandex.ru'
     recipient_list = [user.email]
     return send_mail(
         subject=subject,
