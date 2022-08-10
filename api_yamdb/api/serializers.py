@@ -16,6 +16,13 @@ class SignupSerializer(serializers.ModelSerializer):
         fields = ('username', 'email')
         model = User
 
+    def validate_username(self, value):
+        if value == 'me':
+            raise serializers.ValidationError(
+                'Имя пользователя "me" не разрешено.'
+            )
+        return value
+
 
 class TokenSerializer(serializers.ModelSerializer):
     confirmation_code = serializers.CharField(required=True)
