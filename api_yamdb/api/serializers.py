@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from users.models import User
+from reviews.models import User
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -8,6 +8,14 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         fields = '__all__'
         model = User
+
+
+class UserEditSerializer(serializers.ModelSerializer):
+    class Meta:
+        fields = ("username", "email", "first_name",
+                  "last_name", "bio", "role")
+        model = User
+        read_only_fields = ('role',)
 
 
 class SignupSerializer(serializers.ModelSerializer):
@@ -19,7 +27,7 @@ class SignupSerializer(serializers.ModelSerializer):
     def validate_username(self, value):
         if value == 'me':
             raise serializers.ValidationError(
-                'Имя пользователя "me" не разрешено.'
+                'Создать пользователя с именем "me" не разрешено.'
             )
         return value
 
