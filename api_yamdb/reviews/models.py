@@ -47,7 +47,7 @@ class User(AbstractUser):
 
         constraints = [
             models.CheckConstraint(
-                check=~models.Q(username__iexact="me"),
-                name="username_is_not_me"
+                check=~models.Q(username__iexact='me'),
+                name='username_is_not_me'
             )
         ]
