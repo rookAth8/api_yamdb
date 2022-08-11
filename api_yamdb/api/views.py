@@ -24,11 +24,6 @@ class UserViewSet(viewsets.ModelViewSet):
     lookup_value_regex = r'[\w\@\.\+\-]+'
     search_fields = ('username',)
 
-    # def get_permissions(self):
-    #     if self.action == 'profile':
-    #         return [IsAuthenticated()]
-    #     return super().get_permissions()
-
     @action(
         methods=[
             'GET',
