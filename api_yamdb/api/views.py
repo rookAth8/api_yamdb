@@ -58,10 +58,7 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     pagination_class = PageNumberPagination
     permission_classes = (IsRoleAdmin,)
-    filter_backends = (filters.SearchFilter,)
     lookup_field = 'username'
-    lookup_value_regex = r'[\w\@\.\+\-]+'
-    search_fields = ('username',)
 
     @action(
         methods=[
