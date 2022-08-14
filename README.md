@@ -18,7 +18,7 @@
 
 ![img_2.png](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)
 ```
-git clone https://github.com/VladBorisof/api_yamdb.git
+git clone git@github.com:rookAth8/api_yamdb.git
 
 cd api_yamdb
 ```
