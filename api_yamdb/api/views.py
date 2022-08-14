@@ -1,21 +1,24 @@
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
-from rest_framework import filters, status, viewsets, mixins
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, mixins, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.exceptions import ParseError, PermissionDenied
 from rest_framework.generics import get_object_or_404
+from rest_framework.pagination import (LimitOffsetPagination,
+                                       PageNumberPagination)
+from rest_framework.permissions import (AllowAny, IsAuthenticated,
+                                        IsAuthenticatedOrReadOnly)
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import AccessToken
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.pagination import LimitOffsetPagination
 
-from .permissions import IsAdminOrReadOnly
-from .serializers import CategorySerializer, GenreSerializer
-from reviews.models import Category, Genre, Title, User
-from api.serializers import (UserEditSerializer, UserSerializer,
-                             SignupSerializer, TokenSerializer)
-from api.permissions import IsRoleAdmin
+from reviews.models import Category, Comment, Genre, Review, Title, User
+from .filters import TitleFilter
+from .permissions import IsAdminOrReadOnly, IsRoleAdmin
+from .serializers import (CategorySerializer, CommentSerializer,
+                          GenreSerializer, ReviewSerializer, SignupSerializer,
+                          TitleGetSerializer, TitlePostSerializer,
+                          TokenSerializer, UserEditSerializer, UserSerializer)
 
 
 class CategoryViewSet(
@@ -30,6 +33,7 @@ class CategoryViewSet(
     pagination_class = LimitOffsetPagination
     filter_backends = (filters.SearchFilter,)
     search_fields = ('name',)
+    lookup_field = 'slug'
 
 
 class GenreViewSet(
@@ -39,10 +43,12 @@ class GenreViewSet(
     viewsets.GenericViewSet
 ):
     queryset = Genre.objects.all()
+    permission_classes = (IsAdminOrReadOnly,)
     serializer_class = GenreSerializer
     pagination_class = LimitOffsetPagination
     filter_backends = (filters.SearchFilter,)
     search_fields = ('name',)
+    lookup_field = 'slug'
 
 
 class TitleViewSet(viewsets.ModelViewSet):
@@ -50,7 +56,12 @@ class TitleViewSet(viewsets.ModelViewSet):
     permission_classes = (IsAdminOrReadOnly,)
     pagination_class = LimitOffsetPagination
     filter_backends = (DjangoFilterBackend,)
-    filterset_fields = ('category', 'genre', 'name', 'year')
+    filterset_class = TitleFilter
+
+    def get_serializer_class(self):
+        if self.request.method in ('POST', 'PATCH'):
+            return TitlePostSerializer
+        return TitleGetSerializer
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -88,7 +99,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([AllowAny, ])
 def token(request):
     serializer = TokenSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -105,7 +116,7 @@ def token(request):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([AllowAny, ])
 def signup(request):
     """Отправка сообщения на введенный e-mail для получения кода"""
     serializer = SignupSerializer(data=request.data)
@@ -129,3 +140,77 @@ def send_code_for_confirm(user):
         from_email=from_email,
         recipient_list=recipient_list
     )
+
+
+class ReviewViewSet(viewsets.ModelViewSet):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
+    pagination_class = LimitOffsetPagination
+    permission_classes = [IsAuthenticatedOrReadOnly | IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        title_id = self.kwargs['titles_id']
+        title = get_object_or_404(Title, id=title_id)
+        return Review.objects.filter(title=title)
+
+    def perform_create(self, serializer):
+        title_id = self.kwargs['titles_id']
+        title = get_object_or_404(Title, id=title_id)
+        author = self.request.user
+        if Review.objects.filter(
+            author=author
+        ).filter(title=title).exists():
+            raise ParseError(
+                'Можно оставить только один отзыв'
+            )
+        serializer.save(
+            author=author,
+            title=title,
+        )
+
+    def perform_update(self, serializer):
+        if serializer.instance.author != self.request.user:
+            raise PermissionDenied('Изменение чужих отзывов запрещено')
+        return super().perform_update(serializer)
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        if instance.author == self.request.user or (
+            user.is_admin or user.is_superuser or user.is_moderator
+        ):
+            return super().perform_destroy(instance)
+        raise PermissionDenied('Нет прав на удаление')
+
+
+class CommentViewSet(viewsets.ModelViewSet):
+    queryset = Comment.objects.all()
+    serializer_class = CommentSerializer
+    pagination_class = LimitOffsetPagination
+    permission_classes = [IsAuthenticatedOrReadOnly | IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        title_id = self.kwargs['titles_id']
+        title = get_object_or_404(Title, id=title_id)
+        review_id = self.kwargs['review_id']
+        review = get_object_or_404(Review, id=review_id, title=title)
+        return Comment.objects.filter(review=review)
+
+    def perform_create(self, serializer):
+        title_id = self.kwargs['titles_id']
+        title = get_object_or_404(Title, id=title_id)
+        review_id = self.kwargs['review_id']
+        review = get_object_or_404(Review, id=review_id, title=title)
+        serializer.save(author=self.request.user, review=review)
+
+    def perform_update(self, serializer):
+        if serializer.instance.author != self.request.user:
+            raise PermissionDenied('Изменение чужих комментариев запрещено')
+        return super().perform_update(serializer)
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        if instance.author == self.request.user or (
+            user.is_admin or user.is_superuser or user.is_moderator
+        ):
+            return super().perform_destroy(instance)
+        raise PermissionDenied('Нет прав на удаление')
