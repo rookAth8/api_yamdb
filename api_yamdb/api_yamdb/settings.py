@@ -21,13 +21,16 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
     'rest_framework',
     'django_filters',
+
     'api',
-    'reviews'
+    'reviews',
+    'users'
 ]
 
-AUTH_USER_MODEL = 'reviews.User'
+AUTH_USER_MODEL = 'users.User'
 
 EMAIL_HOST = 'localhost'
 EMAIL_PORT = 1025
