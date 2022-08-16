@@ -1,8 +1,10 @@
 import datetime
+
 from django.forms import ValidationError
 from rest_framework import serializers
-from rest_framework.validators import UniqueValidator
-from reviews.models import Category, Genre, Title, User
+from rest_framework.relations import SlugRelatedField
+from reviews.models import Category, Comment, Genre, Review, Title
+from users.models import User
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -20,6 +22,7 @@ class GenreSerializer(serializers.ModelSerializer):
 class TitleGetSerializer(serializers.ModelSerializer):
     genre = GenreSerializer(many=True)
     category = CategorySerializer()
+    rating = serializers.SerializerMethodField()
 
     class Meta:
         fields = (
@@ -29,8 +32,19 @@ class TitleGetSerializer(serializers.ModelSerializer):
             'description',
             'genre',
             'category',
+            'rating'
         )
         model = Title
+
+    def get_rating(self, obj):
+        scores = Review.objects.filter(title=obj).values('score')
+        scores_list = []
+        for y in scores:
+            scores_list.append(y['score'])
+        if scores_list != []:
+            avg = sum(scores_list) / len(scores_list)
+            return int(avg)
+        return None
 
 
 class TitlePostSerializer(serializers.ModelSerializer):
@@ -100,3 +114,28 @@ class TokenSerializer(serializers.ModelSerializer):
     class Meta:
         fields = ('username', 'confirmation_code')
         model = User
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    author = SlugRelatedField(
+        read_only=True, slug_field='username'
+    )
+
+    class Meta:
+        fields = ('id', 'text', 'score', 'author', 'pub_date')
+        model = Review
+
+    def validate_score(self, score):
+        if score not in range(1, 11):
+            raise ValidationError('Допустимы оценки от 1 до 10')
+        return score
+
+
+class CommentSerializer(serializers.ModelSerializer):
+    author = SlugRelatedField(
+        read_only=True, slug_field='username'
+    )
+
+    class Meta:
+        fields = ('id', 'text', 'author', 'pub_date')
+        model = Comment
